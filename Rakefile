@@ -5,8 +5,8 @@ begin
   require 'jeweler'
   Jeweler::Tasks.new do |gem|
     gem.name = "mavify"
-    gem.summary = %Q{TODO: one-line summary of your gem}
-    gem.description = %Q{TODO: longer description of your gem}
+    gem.summary = %Q{Replacement for the default Capistrano tasks, designed to make life easier for Maven/Java users}
+    gem.description = %Q{Replacement for the rails deploy strategy which ships with Capistrano, allows you to deploy maven projects with ease.}
     gem.email = "folker.bernitt@gmx.de"
     gem.homepage = "http://github.com/TheCodEx/mavify"
     gem.authors = ["Folker Bernitt"]
