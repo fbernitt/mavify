@@ -16,7 +16,7 @@ module Capistrano
 
             # Sets the default command name for maven on your *local* machine.
             # Users may override this by setting the :build_command variable.
-            default_command "mvn install -Pall"
+            default_command "mvn install"
           end
 
 
@@ -28,6 +28,7 @@ module Capistrano
             puts "here we are! build_dir=[#{build_dir}] and build_repository=[#{build_repository}]"
             cmd = "cd #{build_repository} && #{command}"
             
+            logger.info "Maven Comand: #{command}"
             system(cmd)
           end
         
@@ -35,7 +36,6 @@ module Capistrano
           private
         
           def command
-            # For backwards compatibility with 1.x version of this module
             variable(:maven) || super
           end
 

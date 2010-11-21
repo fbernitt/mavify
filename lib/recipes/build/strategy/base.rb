@@ -51,7 +51,7 @@ module Capistrano
           def build_repository
             variable(:build_repository)
           end
-
+          
           # logs the command then executes it locally.
           # returns the command output as a string
           def run_build(cmd)

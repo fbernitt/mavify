@@ -6,6 +6,7 @@ require 'capistrano/recipes/deploy/strategy'
 require 'capistrano/logger'
 
 require 'recipes/build/strategy'
+require 'recipes/build/artifact'
 
 def _cset(name, *args, &block)
   unless exists?(name)
@@ -23,6 +24,9 @@ _cset(:repository)  { abort "Please specify the repository that houses your appl
 
 _cset(:build_dir) { "/tmp/mavify/#{application}" }
 _cset(:build_repository) { "#{build_dir}/repository" }
+
+# The revision of the latest successful build
+_cset(:latest_build_revision_file) { "#{build_dir}/LATEST_BUILD_REVISION" }
 _cset(:source) { Capistrano::Deploy::SCM.new(scm, self) }
 _cset(:builder) { Capistrano::Mavify::Build::Strategy.new("maven", self) }
 
@@ -45,6 +49,11 @@ def real_revision
   source.local.query_revision(revision) { |cmd| with_env("LC_ALL", "C") { run_locally(cmd) } }
 end
 
+def revision_name
+  cmd = "git --git-dir=#{build_repository}/.git describe $(git --git-dir=#{build_repository}/.git rev-list --tags --max-count=1 HEAD)"
+  with_env("LC_ALL", "C") { run_locally(cmd) }
+end
+
 # =========================================================================
 # These are the tasks that are available to help with deploying web apps,
 # and specifically, Rails applications. You can have cap give you a summary
@@ -64,7 +73,12 @@ namespace :build do
     Actually calls the build strategy.
   DESC
   task :run_build do
+    logger.info "Revision name: #{revision_name}"
     builder.build!
+    system("echo #{real_revision} > #{latest_build_revision_file}")
+  end
+  
+  task :collect_artifacts do
   end
   
   desc <<-DESC
@@ -89,10 +103,10 @@ namespace :build do
   DESC
   task :prepare_build_repository do
     if not File.exist?(build_repository)
-      system(source.checkout(revision, build_repository))
+      system(source.checkout(real_revision, build_repository))
     else
-      puts source.sync(revision, build_repository)
-      system(source.sync(revision, build_repository))
+      puts source.sync(real_revision, build_repository)
+      system(source.sync(real_revision, build_repository))
     end
     logger.trace "Current head is #{source.head} at #{real_revision}" if logger
   end
