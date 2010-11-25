@@ -99,7 +99,7 @@ module Capistrano
           def ensure_parent_dir_exists (target_path)
             parent = File.dirname(target_path)
             if not File.exists?(parent)
-              Dir.mkdir(parent)
+              FileUtils.mkdir_p(parent)
             end
           end
         end
@@ -126,8 +126,15 @@ end
 
 # Creattes a BuildArtifact for standard maven target folders
 def maven_auto_artifact (module_name)
-  logger.info "Build directory is #{build_repository}"
   builder = artifacts_builder
   builder.collect(File.join(build_repository, module_name, "target"), /classes/, /test-classes/, /maven-archiver/)
+  builder.to_set
+end
+
+def maven_auto_artifacts (*module_names)
+  builder = artifacts_builder
+  module_names.each do |module_name|
+    builder.collect(File.join(build_repository, module_name, "target"), /classes/, /test-classes/, /maven-archiver/, /.*-SNAPSHOT$/)
+  end
   builder.to_set
 end

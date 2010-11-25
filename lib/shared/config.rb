@@ -20,7 +20,8 @@ _cset(:repository)  { abort "Please specify the repository that houses your appl
 
 _cset(:build_dir) { "/tmp/mavify/#{application}" }
 _cset(:build_repository) { "#{build_dir}/repository" }
-_cset(:build_target_dir) { File.join(build_dir, "target", revision_name) }
+_cset(:build_target_dir) { File.join(build_dir, "target") }
+_cset(:build_target_artifacts_dir) { File.join(build_target_dir, revision_name) }
 _cset(:project_name) { "unknown" }
 
 # The revision of the latest successful build
@@ -32,7 +33,6 @@ def revision_name
   cmd = "git --git-dir=#{build_repository}/.git describe $(git --git-dir=#{build_repository}/.git rev-list --tags --max-count=1 HEAD)"
   with_env("LC_ALL", "C") { run_locally(cmd).strip }
 end
-
 
 # logs the command then executes it locally.
 # returns the command output as a string

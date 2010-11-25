@@ -40,19 +40,24 @@ def run_locally(cmd)
   output_on_stdout
 end
 
+# runs the command locally but does not write any logs
+def silent_run_locally(cmd)
+  `#{cmd}`
+end
+
 def real_revision
-  source.local.query_revision(revision) { |cmd| with_env("LC_ALL", "C") { run_locally(cmd) } }
+  source.local.query_revision(revision) { |cmd| with_env("LC_ALL", "C") { silent_run_locally(cmd) } }
 end
 
 def revision_name
   cmd = "git --git-dir=#{build_repository}/.git describe $(git --git-dir=#{build_repository}/.git rev-list --tags --max-count=1 HEAD)"
-  with_env("LC_ALL", "C") { run_locally(cmd).strip }
+  with_env("LC_ALL", "C") { silent_run_locally(cmd).strip }
 end
 
 def init_target_dir
-  dir = File.join(build_target_dir, project_name)
+  dir = File.join(build_target_artifacts_dir, project_name)
   FileUtils.remove_dir(dir) unless !File.exists?(dir)
-  FileUtils.mkdir_p(build_target_dir) unless File.exists?(build_target_dir)
+  FileUtils.mkdir_p(build_target_artifacts_dir) unless File.exists?(build_target_artifacts_dir)
   Dir.mkdir(dir)
 end
 
@@ -71,6 +76,12 @@ namespace :build do
     run_build
     prepare_target
     collect_artifacts
+    add_revision_file
+  end
+  
+  desc "Resets the build target directory"
+  task :clean do
+    FileUtils.remove_dir(build_target_dir)
   end
   
   desc <<-DESC
@@ -86,10 +97,15 @@ namespace :build do
     Collects the maven build artifacts and copies them to the target releae dir
   DESC
   task :collect_artifacts do
-    logger.info "Collecting build artifacts to #{build_target_dir}"
+    logger.info "Collecting build artifacts to #{build_target_artifacts_dir}"
     artifacts.each do |artifact|
-      artifact_copier(File.join(build_target_dir, project_name), artifact).copy
+      artifact_copier(File.join(build_target_artifacts_dir, project_name), artifact).copy
     end
+  end
+  
+  desc "Tags the target dir with the repository revision"
+  task :add_revision_file do
+    File.open(File.join(build_target_artifacts_dir, "REVISION"), "w") { |f| f.puts(real_revision) }
   end
   
   desc <<-DESC
@@ -124,7 +140,6 @@ namespace :build do
     if not File.exist?(build_repository)
       system(source.checkout(real_revision, build_repository))
     else
-      puts source.sync(real_revision, build_repository)
       system(source.sync(real_revision, build_repository))
     end
     logger.trace "Current head is #{source.head} at #{real_revision}" if logger

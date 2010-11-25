@@ -45,12 +45,9 @@ _cset(:deploy_strategy) { Capistrano::Mavify::Deploy::Strategy.new("copy", self)
 set(:release_name)      { revision_name }
 
 _cset :version_dir,       "releases"
-_cset :shared_dir,        "shared"
-_cset :shared_children,   %w(system log pids)
 _cset :current_dir,       "current"
 
 _cset(:releases_path)     { File.join(deploy_to, version_dir) }
-_cset(:shared_path)       { File.join(deploy_to, shared_dir) }
 _cset(:current_path)      { File.join(deploy_to, current_dir) }
 _cset(:release_path)      { File.join(releases_path, release_name) }
 
@@ -168,6 +165,24 @@ namespace :deploy do
   end
 
   desc <<-DESC
+    Prepares one or more servers for deployment. Before you can use any \
+    of the Capistrano deployment tasks with your project, you will need to \
+    make sure all of your servers have been prepared with `cap deploy:setup'. When \
+    you add a new server to your cluster, you can easily run the setup task \
+    on just that server by specifying the HOSTS environment variable:
+
+      $ cap HOSTS=new.server.com deploy:setup
+
+    It is safe to run this task on servers that have already been set up; it \
+    will not destroy any deployed revisions or data.
+  DESC
+  task :setup, :except => { :no_release => true } do
+    dirs = [releases_path]
+    #run "#{try_sudo} mkdir -p #{dirs.join(' ')} && #{try_sudo} chmod g+w #{dirs.join(' ')}"
+    run "mkdir -p #{dirs.join(' ')} && chmod g+w #{dirs.join(' ')}"
+  end
+
+  desc <<-DESC
     Copies your project and updates the symlink. It does this in a \
     transaction, so that if either `update_code' or `symlink' fail, all \
     changes made to the remote servers will be rolled back, leaving your \
@@ -197,8 +212,28 @@ namespace :deploy do
   task :update_code, :except => { :no_release => true } do
     on_rollback { run "rm -rf #{release_path}; true" }
     deploy_strategy.deploy!
-    #finalize_update
+    finalize_update
   end
+
+  desc <<-DESC
+    [internal] Touches up the released code. This is called by update_code \
+    after the basic deploy finishes. It assumes a Rails project was deployed, \
+    so if you are deploying something else, you may want to override this \
+    task with your own environment's requirements.
+
+    This task will make the release group-writable (if the :group_writable \
+    variable is set to true, which is the default). It will then set up \
+    symlinks to the shared directory for the log, system, and tmp/pids \
+    directories, and will lastly touch all assets in public/images, \
+    public/stylesheets, and public/javascripts so that the times are \
+    consistent (so that asset timestamping works).  This touch process \
+    is only carried out if the :normalize_asset_timestamps variable is \
+    set to true, which is the default.
+  DESC
+  task :finalize_update, :except => { :no_release => true } do
+    run "chmod -R g+w #{latest_release}" if fetch(:group_writable, true)
+  end
+
 
   desc <<-DESC
     Updates the symlink to the most recently deployed version. Capistrano works \
@@ -210,6 +245,36 @@ namespace :deploy do
     except `restart').
   DESC
   task :symlink, :except => { :no_release => true } do
+    on_rollback do
+      if previous_release
+        puts "rm -f #{current_path}; ln -s #{previous_release} #{current_path}; true"
+      else
+        logger.important "no previous release to rollback to, rollback of symlink skipped"
+      end
+    end
+
+    puts "rm -f #{current_path} && ln -s #{latest_release} #{current_path}"
+  end
+  
+  namespace :pending do
+    desc <<-DESC
+      Displays the `diff' since your last deploy. This is useful if you want \
+      to examine what changes are about to be deployed. Note that this might \
+      not be supported on all SCM's.
+    DESC
+    task :diff, :except => { :no_release => true } do
+      system(source.local.diff(current_revision))
+    end
+
+    desc <<-DESC
+      Displays the commits since your last deploy. This is good for a summary \
+      of the changes that have occurred since the last deploy. Note that this \
+      might not be supported on all SCM's.
+    DESC
+    task :default, :except => { :no_release => true } do
+      from = source.next_revision(current_revision)
+      system(source.local.log(from))
+    end
   end
 end
 end

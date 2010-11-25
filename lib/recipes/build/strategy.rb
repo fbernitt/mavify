@@ -4,7 +4,6 @@ module Capistrano
       module Strategy
         def self.new(strategy, config={})
           strategy_file = "recipes/build/strategy/#{strategy}"
-          puts "requiring #{strategy_file}"
           require(strategy_file)
 
           strategy_const = strategy.to_s.capitalize.gsub(/_(.)/) { $1.upcase }

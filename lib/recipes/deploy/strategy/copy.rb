@@ -11,19 +11,37 @@ module Capistrano
           def deploy!
             logger.trace "compressing target files to #{filename}"
             #Dir.chdir(build_dir) { system(compress(File.basename(destination), File.basename(filename)).join(" ")) }
-            logger.info "Build dir is #{build_target_dir}"
+            logger.info "Build dir is #{build_target_artifacts_dir}"
             logger.info compress("*", File.basename(filename)).join(" ")
-            Dir.chdir(build_target_dir) { system(compress("*", File.basename(filename)).join(" ")) }
+            FileUtils.remove(filename) if File.exists?(filename)
+            
+            Dir.chdir(build_target_dir) { system(compress(File.basename(build_target_artifacts_dir), File.basename(filename)).join(" ")) }
+            upload(filename, remote_filename)
+            run "cd #{configuration[:releases_path]} && #{decompress(remote_filename).join(" ")} && rm #{remote_filename}"
+          end
+          
+          private
+          
+          # The directory on the remote server to which the archive should be
+          # copied
+          def remote_dir
+            @remote_dir ||= configuration[:remote_deploy_dir] || "/tmp"
+          end
+
+          # The location on the remote server where the file should be
+          # temporarily stored.
+          def remote_filename
+            @remote_filename ||= File.join(remote_dir, File.basename(filename))
           end
           
           # Returns the name of the file that the source code will be
           # compressed to.
           def filename
-            @filename ||= File.join(build_dir, "#{revision_name}.#{compression.extension}")
+            @filename ||= File.join(build_target_dir, "#{revision_name}.#{compression.extension}")
           end
           
-          def build_dir
-            @build_dir ||= configuration[:build_dir] || Dir.tmpdir
+          def build_target_dir
+            @build_dir ||= configuration[:build_target_dir] || Dir.tmpdir
           end
           
           # A struct for representing the specifics of a compression type.

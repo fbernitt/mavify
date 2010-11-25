@@ -24,8 +24,6 @@ module Capistrano
           # code identified by the +revision+ variable.
           def build!
             build_dir = variable(:build_dir)
-            #raise NotImplementedError, "`build!' is not implemented by #{self.class.name}"
-            puts "here we are! build_dir=[#{build_dir}] and build_repository=[#{build_repository}]"
             cmd = "cd #{build_repository} && #{command}"
             
             logger.info "Maven Comand: #{command}"
