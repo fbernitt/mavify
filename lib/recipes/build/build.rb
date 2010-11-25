@@ -2,17 +2,13 @@ Capistrano::Configuration.instance(:must_exist).load do
 require 'benchmark'
 require 'capistrano/configuration/variables'
 require 'capistrano/recipes/deploy/scm'
-require 'capistrano/recipes/deploy/strategy'
+#require 'capistrano/recipes/deploy/strategy'
 require 'capistrano/logger'
 
 require 'recipes/build/strategy'
 require 'recipes/build/artifact'
 
-def _cset(name, *args, &block)
-  unless exists?(name)
-    set(name, *args, &block)
-  end
-end
+require 'shared/config'
 
 # =========================================================================
 # These variables MUST be set in the client capfiles. If they are not set,
@@ -22,8 +18,7 @@ end
 _cset(:application) { abort "Please specify the name of your application, set :application, 'foo'" }
 _cset(:repository)  { abort "Please specify the repository that houses your application's code, set :repository, 'foo'" }
 
-_cset(:build_dir) { "/tmp/mavify/#{application}" }
-_cset(:build_repository) { "#{build_dir}/repository" }
+_cset(:revision_name) { revision_name }
 
 # The revision of the latest successful build
 _cset(:latest_build_revision_file) { "#{build_dir}/LATEST_BUILD_REVISION" }
@@ -51,7 +46,14 @@ end
 
 def revision_name
   cmd = "git --git-dir=#{build_repository}/.git describe $(git --git-dir=#{build_repository}/.git rev-list --tags --max-count=1 HEAD)"
-  with_env("LC_ALL", "C") { run_locally(cmd) }
+  with_env("LC_ALL", "C") { run_locally(cmd).strip }
+end
+
+def init_target_dir
+  dir = File.join(build_target_dir, project_name)
+  FileUtils.remove_dir(dir) unless !File.exists?(dir)
+  FileUtils.mkdir_p(build_target_dir) unless File.exists?(build_target_dir)
+  Dir.mkdir(dir)
 end
 
 # =========================================================================
@@ -67,6 +69,8 @@ namespace :build do
   task :default do
     prepare_build
     run_build
+    prepare_target
+    collect_artifacts
   end
   
   desc <<-DESC
@@ -78,7 +82,22 @@ namespace :build do
     system("echo #{real_revision} > #{latest_build_revision_file}")
   end
   
+  desc <<-DESC
+    Collects the maven build artifacts and copies them to the target releae dir
+  DESC
   task :collect_artifacts do
+    logger.info "Collecting build artifacts to #{build_target_dir}"
+    artifacts.each do |artifact|
+      artifact_copier(File.join(build_target_dir, project_name), artifact).copy
+    end
+  end
+  
+  desc <<-DESC
+    Prepares the target directory for artifacts.
+    Deletes any existing directory
+  DESC
+  task :prepare_target do
+    init_target_dir
   end
   
   desc <<-DESC
@@ -110,6 +129,6 @@ namespace :build do
     end
     logger.trace "Current head is #{source.head} at #{real_revision}" if logger
   end
-
 end
+
 end
